@@ -1,0 +1,124 @@
+# HTB Pro Lab: RastaLabs - Walkthrough (Methodology Focused)
+
+**Lab Name:** RastaLabs  
+**Platform:** HackTheBox Pro Labs  
+**Difficulty:** Hard (Red Team Operator Level)  
+**Environment:** Windows Active Directory (rastalabs.local domain)  
+**Starting Point:** DMZ network (10.10.110.0/24)  
+**Goal:** Reach Domain Admin + collect all flags (17+ flags typical)  
+**Author:** Anvi (Maham, Haryana)  
+**Date:** January 2026  
+
+RastaLabs ek full red team simulation hai — external recon se shuru hoke internal AD compromise tak. Phishing, credential access, lateral movement, priv esc, GPO abuse jaise real-world techniques use karne padte hain.
+
+## Skills & Techniques Covered
+
+- External reconnaissance & OSINT  
+- Phishing (OWA credential harvesting + macro/HTA delivery)  
+- Initial foothold (user shell on workstation)  
+- Local privilege escalation  
+- Credential dumping & reuse  
+- Kerberos attacks (AS-REP Roasting, Kerberoasting)  
+- Pass-the-Hash / Pass-the-Ticket  
+- Lateral movement (WinRM, SMB, etc.)  
+- Active Directory enumeration (BloodHound, PowerView)  
+- GPO abuse (create/link/modify permissions)  
+- Persistence & C2 (Covenant/Empire/Havoc style)  
+- Patience & reassessment (multiple paths try karna padta hai)
+
+## 1. Initial Recon & Host Discovery (DMZ)
+
+Subnet ping sweep:
+
+```bash
+nmap -sn -T4 10.10.110.0/24 -oN alive.txt
+Live hosts:
+
+10.10.110.2 → Linux (possible pivot point later)
+10.10.110.254 → Main entry (web01.rastalabs.local)
+
+Detailed scan:
+Bashnmap -T4 -sC -sV -p- 10.10.110.254
+Ports:
+
+80 → Apache (Hugo static site: RastaLabs landing page)
+443 → IIS (Outlook Web Access - OWA login)
+
+Browse:
+
+http://10.10.110.254/about/ → Employee names & headshots
+sitemap.xml → Internal hostname: web01.rastalabs.local
+/etc/hosts add: 10.10.110.254 web01.rastalabs.local rastalabs.local
+
+Users from source/HTML:
+
+rweston, epugh, ngodfrey, ahope, bowen, tquinn
+Domain: rastalabs (NetBIOS) / rastalabs.local
+
+2. OWA Enumeration & Brute-Force / Spraying
+OWA: https://10.10.110.254/owa/
+
+Username format: rastalabs\username
+Password spraying ya brute-force (common passwords, seasons, company names)
+Tools: Burp Intruder, Ruler, CrackMapExec, custom scripts
+
+Success → Creds harvest (e.g., ahope ya koi weak user) → Phishing vector setup.
+3. Phishing & Initial Foothold
+
+Macro document (Word/Excel VBA) ya HTA file banaya
+Obfuscation + AMSI bypass attempts
+Delivery: Spoofed email ya link (SMTP abuse ya internal relay)
+Multiple attempts (AV evasion, different payloads)
+
+Success: User-level shell on WS04 (workstation)
+4. Post-Exploitation & Lateral Movement (High-Level Path)
+
+WS04 foothold → Local priv esc (SYSTEM)
+Constrained Language Mode bypass try (fail → alternate)
+AS-REP Roasting (pre-auth not required users)
+Tools: Rubeus, GetNPUsers.py (Impacket)
+PTH → WinRM on WS05 (unintentional path)
+User tquinn on WS06
+KeePass database → ngodfrey_adm creds crack
+LAPS passwords dump (all workstations/servers local admins)
+Re-assessment rounds:
+WS02, SQL01 exploitation
+More Kerberos / credential abuse
+
+GPO Abuse (key path)
+Enum who can create/link/modify GPOs (BloodHound/PowerView/Group3r)
+SharpGPOAbuse / PowerGPOAbuse → Malicious GPO (Immediate Task, Schtasks, etc.)
+Attempts: Reverse shell / local admin add → gpupdate /force
+
+File Server → DC quick own (post GPO or other vector)
+
+5. Domain Compromise
+
+Domain Admin shell on DC
+All flags collected (flag format: RASTA{...})
+Common flags locations: Desktops, shares, admin notes, etc.
+
+Main Tools Used
+
+nmap → Recon
+Burp / Ruler → OWA attacks
+Impacket suite → AD attacks (wmiexec, psexec, GetNPUsers)
+Rubeus → Kerberos roasting/tickets
+BloodHound → Graph AD paths
+PowerView / SharpView → Enum
+CrackMapExec → Spraying / exec
+SharpGPOAbuse / PowerGPOAbuse → GPO exploits
+Evil-WinRM / Covenant / Empire → C2 & lateral
+john / hashcat → Cracking KeePass / hashes
+
+Lessons & Tips
+
+Phishing almost hamesha starting point hota hai
+OWA/Exchange common external vector
+Re-assess karte raho — dead ends bohot aate hain
+GPO permissions loose hone par bohot powerful
+LAPS + KeePass reuse common weak points
+AV/Defender enabled → evasion practice karo
+Pivots stable rakho (lab reset nahi hota auto)
+Happy red teaming! 🔥
+
